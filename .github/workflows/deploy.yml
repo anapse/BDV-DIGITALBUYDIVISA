@@ -1,0 +1,48 @@
+name: BDV Digital Production CI & Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-build:
+    name: Validar, Compilar y Ejecutar Pruebas
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar Código Fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Instalar Dependencias
+        run: npm ci
+
+      - name: Comprobación de Tipos y Linting
+        run: npm run lint
+
+      - name: Compilación del Frontend (Vite)
+        run: npm run build
+
+      - name: Ejecución de Suite de Validación Bancaria (Idempotencia y Reglas)
+        run: npx tsx test_bdv_flow.ts
+        env:
+          NODE_ENV: test
+
+      - name: Verificar Integridad de Artefactos de Producción
+        run: |
+          test -d dist || { echo "Error: Directorio dist no generado"; exit 1; }
+          test -f dist/index.html || { echo "Error: dist/index.html no encontrado"; exit 1; }
+          echo "Artefactos de producción verificados correctamente."

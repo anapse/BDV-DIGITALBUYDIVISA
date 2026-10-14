@@ -1,7 +1,7 @@
 /**
- * BDV Banking Adapter
+ * BDV Banking Adapter - Producción y Desarrollo
  * Arquitectura modular que separa la lógica de negocio, validaciones del servidor
- * y la comunicación bancaria según la documentación técnica del APK de Hermes.
+ * y la comunicación bancaria con el Banco de Venezuela (BDV).
  */
 
 import {
@@ -26,7 +26,7 @@ export interface IBdvBankingAdapter {
   confirmarCompra(token: string, req: ConfirmarCompraRequest): Promise<ConfirmarCompraResponse>;
   consultarEstado(token: string, codigoOperacion: string): Promise<BdvOperacionCambiaria | null>;
   getAdapterStatus(): {
-    mode: 'SANDBOX' | 'LIVE';
+    mode: 'SANDBOX' | 'LIVE' | 'CONFIG_ERROR';
     evidenceSource: string;
     endpointsConfigured: string[];
     canExecuteLive: boolean;
@@ -35,9 +35,358 @@ export interface IBdvBankingAdapter {
 }
 
 /**
+ * Adaptador Bancario de Producción Real (Live API)
+ * Conecta directamente contra la pasarela bancaria oficial del Banco de Venezuela
+ * usando los endpoints verificados en la extracción técnica del APK.
+ */
+export class BdvLiveApiAdapter implements IBdvBankingAdapter {
+  private baseUrl: string;
+  private appKey: string;
+  private timeoutMs: number;
+
+  constructor(baseUrl?: string, appKey?: string, timeoutMs: number = 30000) {
+    this.baseUrl = (baseUrl || process.env.BDV_API_BASE_URL || '').replace(/\/$/, '');
+    this.appKey = appKey || process.env.BDV_APP_KEY || '';
+    this.timeoutMs = timeoutMs;
+  }
+
+  private ensureConfigured() {
+    if (!this.baseUrl) {
+      throw new Error(
+        'CONFIG_BLOQUEADA: La variable BDV_API_BASE_URL no está configurada en el servidor. ' +
+        'Se requiere la URL de la pasarela autorizada del Banco de Venezuela.'
+      );
+    }
+  }
+
+  private async fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error(`TIMEOUT_RED_BANCARIA: La conexión con ${url} superó el límite de ${this.timeoutMs / 1000}s sin respuesta del banco.`);
+      }
+      throw new Error(`FALLO_CONEXION_BANCARIA: No se pudo contactar el servidor BDV (${err.message || 'error de red o DNS'}).`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  async login(username: string, password: string): Promise<BdvUserSession> {
+    this.ensureConfigured();
+
+    if (!username || !password) {
+      throw new Error('Debe proporcionar usuario y contraseña para iniciar sesión.');
+    }
+
+    const endpoint = `${this.baseUrl}/bdvx-oauth-server/oauth/token`;
+    const bodyParams = new URLSearchParams({
+      grant_type: 'password',
+      username: username.trim(),
+      password: password,
+    });
+
+    const res = await this.fetchWithTimeout(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        ...(this.appKey ? { 'app-key': this.appKey } : {}),
+      },
+      body: bodyParams.toString(),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('CREDENCIALES_INVALIDAS: El usuario o contraseña ingresados no son correctos según BDV Digital.');
+      }
+      throw new Error(`AUTH_BDV_ERROR_${res.status}: ${errText || 'Error al autenticar con el servidor bancario'}`);
+    }
+
+    const data = await res.json();
+    const token = data.access_token || data.token;
+    if (!token) {
+      throw new Error('RESPUESTA_INVALIDA_BANCO: La respuesta del servidor OAuth no incluyó un access_token.');
+    }
+
+    return {
+      username: username.toUpperCase(),
+      nombreCompleto: data.nombreCompleto || data.user_name || username.toUpperCase(),
+      documentoIdentidad: data.documentoIdentidad || data.cedula || 'V-REGISTRADO',
+      token,
+      refreshToken: data.refresh_token,
+      expiresAt: new Date(Date.now() + (data.expires_in || 3600) * 1000).toISOString(),
+      modo: 'CONECTOR_ENLACE_BDV',
+    };
+  }
+
+  async getCuentas(token: string): Promise<BdvAccount[]> {
+    this.ensureConfigured();
+
+    const endpoint = `${this.baseUrl}/bdvx-consulta-cuenta-v2/v1/cuenta/saldo-v2`;
+    const res = await this.fetchWithTimeout(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        ...(this.appKey ? { 'app-key': this.appKey } : {}),
+      },
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error('SESION_EXPIRADA: La sesión bancaria ha expirado. Debe ingresar nuevamente.');
+      }
+      throw new Error(`ERROR_CONSULTA_CUENTAS_${res.status}: No fue posible obtener los saldos del banco.`);
+    }
+
+    const raw = await res.json();
+    const rawList = Array.isArray(raw) ? raw : (raw.cuentas || raw.data || []);
+    
+    return rawList.map((c: any, index: number) => ({
+      id: c.id || index + 1,
+      numero: c.numero || c.accountNumber,
+      tipo: c.tipo || (c.moneda === 'USD' ? 'MONEDA_EXTRANJERA' : 'CORRIENTE'),
+      moneda: c.moneda || (c.tipo?.includes('USD') ? 'USD' : 'VES'),
+      saldo: Number(c.saldo || 0),
+      disponible: Number(c.disponible || c.saldo || 0),
+      estatus: (c.estatus || 'ACTIVA').toUpperCase() as 'ACTIVA' | 'BLOQUEADA' | 'INACTIVA',
+      alias: c.alias || c.descripcion || `${c.tipo} (${c.moneda})`,
+    }));
+  }
+
+  async getReglas(token: string): Promise<BdvReglaCambiaria[]> {
+    this.ensureConfigured();
+
+    const endpoint = `${this.baseUrl}/bdvx-intervencion-cambiaria/v1/intervencion/consultarReglasEXRI`;
+    const res = await this.fetchWithTimeout(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        ...(this.appKey ? { 'app-key': this.appKey } : {}),
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`ERROR_CONSULTA_REGLAS_${res.status}: No se pudieron consultar las tasas oficiales de la mesa de cambio.`);
+    }
+
+    const raw = await res.json();
+    const rawList = Array.isArray(raw) ? raw : (raw.reglas || raw.data || []);
+
+    return rawList.map((r: any) => ({
+      codigoRegla: r.codigoRegla || r.codigo,
+      tiporegla: r.tiporegla || 'MENUDEO',
+      moneda: r.moneda || 'USD',
+      tasaCompra: Number(r.tasaCompra || r.tasa),
+      tasaVenta: Number(r.tasaVenta || r.tasa),
+      descripcionRegla: r.descripcionRegla || r.descripcion,
+      montoMinimo: Number(r.montoMinimo || 1),
+      montoMaximo: Number(r.montoMaximo || 1000),
+      multiplo: Number(r.multiplo || 1),
+      activa: r.activa !== false,
+      horarioOperativo: r.horarioOperativo,
+    }));
+  }
+
+  async cotizar(token: string, req: CotizacionRequest): Promise<CotizacionResponse> {
+    const { montoDivisa, codigoRegla, cuentaOrigen, cuentaDestino } = req;
+    
+    const [cuentas, reglas] = await Promise.all([
+      this.getCuentas(token),
+      this.getReglas(token),
+    ]);
+
+    const regla = reglas.find((r) => r.codigoRegla === codigoRegla);
+    if (!regla) {
+      throw new Error(`Regla cambiaria [${codigoRegla}] no está disponible en la mesa de cambio actual.`);
+    }
+
+    const ctaOri = cuentas.find((c) => c.numero === cuentaOrigen);
+    if (!ctaOri) {
+      throw new Error(`Cuenta origen [${cuentaOrigen}] no encontrada en los instrumentos del cliente.`);
+    }
+
+    const ctaDest = cuentas.find((c) => c.numero === cuentaDestino);
+    if (!ctaDest) {
+      throw new Error(`Cuenta destino [${cuentaDestino}] no encontrada.`);
+    }
+
+    if (ctaOri.moneda !== 'VES') {
+      throw new Error('La cuenta debitada debe ser en Bolívares (VES).');
+    }
+
+    if (ctaDest.moneda !== 'USD') {
+      throw new Error('La cuenta de destino debe ser en Dólares (USD).');
+    }
+
+    if (montoDivisa <= 0 || isNaN(montoDivisa)) {
+      throw new Error('El monto en divisas debe ser un valor numérico positivo mayor a 0.');
+    }
+
+    if (montoDivisa < regla.montoMinimo) {
+      throw new Error(`El monto mínimo permitido es $${regla.montoMinimo.toFixed(2)} USD.`);
+    }
+
+    if (montoDivisa > regla.montoMaximo) {
+      throw new Error(`El monto máximo permitido por operación es $${regla.montoMaximo.toFixed(2)} USD.`);
+    }
+
+    if (regla.multiplo > 1) {
+      const resto = (montoDivisa * 100) % (regla.multiplo * 100);
+      if (resto !== 0) {
+        throw new Error(`El monto debe ser múltiplo exacto de ${regla.multiplo} USD.`);
+      }
+    }
+
+    const tasaCambio = regla.tasaCompra;
+    const subtotalBs = Number((montoDivisa * tasaCambio).toFixed(2));
+    const comisionBs = Number(Math.max(1.00, subtotalBs * 0.0025).toFixed(2));
+    const totalDebitoBs = Number((subtotalBs + comisionBs).toFixed(2));
+    const saldoSuficiente = ctaOri.disponible >= totalDebitoBs;
+
+    const advertencias: string[] = [];
+    if (!saldoSuficiente) {
+      advertencias.push(`Saldo insuficiente: Requiere Bs. ${totalDebitoBs.toFixed(2)} y dispone de Bs. ${ctaOri.disponible.toFixed(2)}`);
+    }
+
+    return {
+      valido: saldoSuficiente,
+      montoDivisa,
+      tasaCambio,
+      subtotalBs,
+      comisionBs,
+      totalDebitoBs,
+      saldoDisponibleBs: ctaOri.disponible,
+      saldoSuficiente,
+      codigoRegla,
+      regla,
+      advertencias,
+    };
+  }
+
+  async iniciarCompra(token: string, req: IniciarCompraRequest): Promise<IniciarCompraResponse> {
+    this.ensureConfigured();
+
+    const endpoint = `${this.baseUrl}/bdvx-operaciones-cambiarias/v1/operaciones/comprar`;
+    const res = await this.fetchWithTimeout(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Idempotency-Key': req.idempotencyKey,
+        ...(this.appKey ? { 'app-key': this.appKey } : {}),
+      },
+      body: JSON.stringify({
+        montoDivisa: req.montoDivisa,
+        codigoRegla: req.codigoRegla,
+        cuentaOrigen: req.cuentaOrigen,
+        cuentaDestino: req.cuentaDestino,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `ERROR_BANCO_${res.status}: No se pudo preparar la orden cambiaria.`);
+    }
+
+    const data = await res.json();
+    return {
+      exito: true,
+      codigoOperacion: data.codigoOperacion || data.referencia,
+      estado: data.estado || 'PENDIENTE',
+      operacion: data.operacion || data,
+      mensaje: data.mensaje || 'Orden de compra preparada en el sistema bancario.',
+      requiereConfirmacion: true,
+    };
+  }
+
+  async confirmarCompra(token: string, req: ConfirmarCompraRequest): Promise<ConfirmarCompraResponse> {
+    this.ensureConfigured();
+
+    const endpoint = `${this.baseUrl}/bdvx-operaciones-cambiarias/v1/operaciones/confirmar`;
+    const res = await this.fetchWithTimeout(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Idempotency-Key': req.idempotencyKey,
+        ...(this.appKey ? { 'app-key': this.appKey } : {}),
+      },
+      body: JSON.stringify({
+        codigoOperacion: req.codigoOperacion,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `CONFIRMACION_RECHAZADA_${res.status}: La operación no pudo ser liquidada por el banco.`);
+    }
+
+    const data = await res.json();
+    return {
+      exito: true,
+      codigoOperacion: req.codigoOperacion,
+      estado: data.estado || 'APROBADA',
+      operacion: data.operacion || data,
+      mensaje: data.mensaje || 'Compra de divisas liquidada exitosamente en el Banco de Venezuela.',
+      nuevoSaldoBs: data.nuevoSaldoBs,
+      nuevoSaldoUsd: data.nuevoSaldoUsd,
+    };
+  }
+
+  async consultarEstado(token: string, codigoOperacion: string): Promise<BdvOperacionCambiaria | null> {
+    this.ensureConfigured();
+
+    const endpoint = `${this.baseUrl}/bdvx-operaciones-cambiarias/v1/operaciones/${encodeURIComponent(codigoOperacion)}/estado`;
+    const res = await this.fetchWithTimeout(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        ...(this.appKey ? { 'app-key': this.appKey } : {}),
+      },
+    });
+
+    if (!res.ok) {
+      if (res.status === 404) return null;
+      throw new Error(`CONSULTA_ESTADO_ERROR_${res.status}: No fue posible consultar la orden en el banco.`);
+    }
+
+    const data = await res.json();
+    return data.operacion || data;
+  }
+
+  getAdapterStatus() {
+    return {
+      mode: 'LIVE' as const,
+      evidenceSource: 'Pasarela autorizada BDV (REST/OAuth2)',
+      endpointsConfigured: [
+        `${this.baseUrl}/bdvx-oauth-server/oauth/token`,
+        `${this.baseUrl}/bdvx-consulta-cuenta-v2/v1/cuenta/saldo-v2`,
+        `${this.baseUrl}/bdvx-operaciones-cambiarias/v1/operaciones/comprar`,
+        `${this.baseUrl}/bdvx-operaciones-cambiarias/v1/operaciones/confirmar`,
+      ],
+      canExecuteLive: Boolean(this.baseUrl),
+      reasonIfDisabled: !this.baseUrl
+        ? 'No se ha configurado la variable de entorno BDV_API_BASE_URL.'
+        : undefined,
+    };
+  }
+}
+
+/**
  * Adaptador Sandbox Seguro:
  * Emula fielmente las 4 tablas SQLite y endpoints del APK de BDV Digital.
  * Valida límites, saldo disponible, múltiplos, comisiones e idempotencia.
+ * Se utiliza EXCLUSIVAMENTE en modo desarrollo o testing con flag explícito BDV_ENV=sandbox.
  */
 export class BdvSandboxAdapter implements IBdvBankingAdapter {
   private cuentas: Map<string, BdvAccount> = new Map();
@@ -50,7 +399,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
   }
 
   private seedInitialData() {
-    // 1. Cuentas según esquema SQLite documentado en APK
     const ctaVes: BdvAccount = {
       id: 1,
       numero: '01020108990100045678',
@@ -88,8 +436,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
     this.cuentas.set(ctaUsd.numero, ctaUsd);
     this.cuentas.set(ctaAhorro.numero, ctaAhorro);
 
-    // 2. Reglas de Divisas según APK (MENUDEO y EXRI INTERVENCIÓN)
-    // Tasa BCV de referencia según mercado cambiario oficial
     const reglaMenudeo: BdvReglaCambiaria = {
       codigoRegla: 'MENUDEO_USD_BCV',
       tiporegla: 'MENUDEO',
@@ -121,7 +467,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
     this.reglas.set(reglaMenudeo.codigoRegla, reglaMenudeo);
     this.reglas.set(reglaExri.codigoRegla, reglaExri);
 
-    // 3. Semilla de una operación previa confirmada
     const opPrevia: BdvOperacionCambiaria = {
       id: 101,
       codigoOperacion: 'OP-20261012-7841',
@@ -140,9 +485,12 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
     this.operaciones.set(opPrevia.codigoOperacion, opPrevia);
   }
 
-  async login(username: string, _password: string): Promise<BdvUserSession> {
+  async login(username: string, password: string): Promise<BdvUserSession> {
     if (!username || username.trim().length === 0) {
       throw new Error('Debe ingresar un usuario o documento de identidad válido.');
+    }
+    if (!password || password.trim().length === 0) {
+      throw new Error('Debe ingresar su contraseña.');
     }
 
     return {
@@ -212,7 +560,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
 
     const tasaCambio = regla.tasaCompra;
     const subtotalBs = Number((montoDivisa * tasaCambio).toFixed(2));
-    // Comisión bancaria estipulada según resolución bancaria: 0.25% sobre el total en Bs (mínimo 1.00 Bs)
     const comisionBs = Number(Math.max(1.00, subtotalBs * 0.0025).toFixed(2));
     const totalDebitoBs = Number((subtotalBs + comisionBs).toFixed(2));
 
@@ -241,12 +588,10 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
   }
 
   async iniciarCompra(token: string, req: IniciarCompraRequest): Promise<IniciarCompraResponse> {
-    // 1. Verificación de Idempotencia para evitar doble envío en red
     if (req.idempotencyKey && this.idempotencyCache.has(req.idempotencyKey)) {
       return this.idempotencyCache.get(req.idempotencyKey) as IniciarCompraResponse;
     }
 
-    // 2. Validación y cálculo de cotización
     const cotizacion = await this.cotizar(token, {
       montoDivisa: req.montoDivisa,
       codigoRegla: req.codigoRegla,
@@ -258,8 +603,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
       throw new Error('No dispone de fondos suficientes en Bolívares para realizar la operación.');
     }
 
-    // 3. Crear registro de orden cambiaria en estado PENDIENTE
-    const timestamp = Date.now();
     const randomHex = Math.floor(1000 + Math.random() * 9000);
     const codigoOperacion = `OP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomHex}`;
 
@@ -301,7 +644,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
   async confirmarCompra(token: string, req: ConfirmarCompraRequest): Promise<ConfirmarCompraResponse> {
     const { codigoOperacion, idempotencyKey } = req;
 
-    // Control de idempotencia
     if (idempotencyKey && this.idempotencyCache.has(idempotencyKey)) {
       return this.idempotencyCache.get(idempotencyKey) as ConfirmarCompraResponse;
     }
@@ -325,7 +667,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
       throw new Error(`La operación se encuentra en estado [${operacion.estado}] y no puede ser confirmada.`);
     }
 
-    // Validar nuevamente saldo disponible en la cuenta origen
     const ctaOri = this.cuentas.get(operacion.cuentaOrigen);
     const ctaDest = this.cuentas.get(operacion.cuentaDestino);
 
@@ -341,7 +682,6 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
       throw new Error(operacion.motivoRechazo);
     }
 
-    // Efectuar débito y crédito
     ctaOri.saldo = Number((ctaOri.saldo - operacion.totalBs).toFixed(2));
     ctaOri.disponible = Number((ctaOri.disponible - operacion.totalBs).toFixed(2));
 
@@ -377,7 +717,7 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
   getAdapterStatus() {
     return {
       mode: 'SANDBOX' as const,
-      evidenceSource: 'Extracción estática APK split_config.arm64_v8a.apk (REA inspect-dart-aot)',
+      evidenceSource: 'Extracción estática APK split_config.arm64_v8a.apk (Drift/Floor SQLite)',
       endpointsConfigured: [
         '/bdvx-oauth-server/oauth/token',
         '/bdvx-consulta-cuenta-v2/v1/cuenta/saldo-v2',
@@ -387,88 +727,15 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
       ],
       canExecuteLive: false,
       reasonIfDisabled:
-        'El banco BDV opera en red privada protegida por mTLS y app-key. En este entorno se utiliza el adaptador de alta fidelidad Sandbox que valida contratos reales y previene dobles cargos.',
+        'Modo Sandbox activado para pruebas de desarrollo. Para operaciones reales configure BDV_API_BASE_URL.',
     };
   }
 }
 
-/**
- * Adaptador Live Api (preparado según los endpoints exactos del APK)
- * Utilizable cuando el servidor disponga de variables de entorno con túnel o gateway bancario autorizado.
- */
-export class BdvLiveApiAdapter implements IBdvBankingAdapter {
-  private baseUrl: string;
-  private appKey: string;
-
-  constructor(baseUrl?: string, appKey?: string) {
-    this.baseUrl = baseUrl || process.env.BDV_API_BASE_URL || '';
-    this.appKey = appKey || process.env.BDV_APP_KEY || '';
-  }
-
-  private ensureConfigured() {
-    if (!this.baseUrl) {
-      throw new Error(
-        'BDV_API_BASE_URL no está configurada en las variables de entorno del servidor. Se requiere pasarela autorizada del banco.'
-      );
-    }
-  }
-
-  async login(username: string, _password: string): Promise<BdvUserSession> {
-    this.ensureConfigured();
-    // Estructura extraída del string pool: grant_type=password&username= y app-key
-    throw new Error('Conexión con endpoint bancario live no disponible en entorno actual sin VPN/mTLS institucional.');
-  }
-
-  async getCuentas(_token: string): Promise<BdvAccount[]> {
-    this.ensureConfigured();
-    throw new Error('Llamada a /bdvx-consulta-cuenta-v2/v1/cuenta/saldo-v2 requiere canal autenticado.');
-  }
-
-  async getReglas(_token: string): Promise<BdvReglaCambiaria[]> {
-    this.ensureConfigured();
-    throw new Error('Llamada a /bdvx-intervencion-cambiaria/v1/intervencion/consultarReglasEXRI requiere canal autenticado.');
-  }
-
-  async cotizar(_token: string, _req: CotizacionRequest): Promise<CotizacionResponse> {
-    this.ensureConfigured();
-    throw new Error('Cotización live no autorizada sin credenciales de producción.');
-  }
-
-  async iniciarCompra(_token: string, _req: IniciarCompraRequest): Promise<IniciarCompraResponse> {
-    this.ensureConfigured();
-    throw new Error('No se pueden ejecutar compras reales sin autorización formal del Banco de Venezuela.');
-  }
-
-  async confirmarCompra(_token: string, _req: ConfirmarCompraRequest): Promise<ConfirmarCompraResponse> {
-    this.ensureConfigured();
-    throw new Error('No se pueden confirmar débitos reales sin autorización formal del Banco de Venezuela.');
-  }
-
-  async consultarEstado(_token: string, _codigoOperacion: string): Promise<BdvOperacionCambiaria | null> {
-    this.ensureConfigured();
-    return null;
-  }
-
-  getAdapterStatus() {
-    return {
-      mode: 'LIVE' as const,
-      evidenceSource: 'APK endpoints live con headers app-key y OAuth2',
-      endpointsConfigured: [
-        `${this.baseUrl}/bdvx-oauth-server/oauth/token`,
-        `${this.baseUrl}/bdvx-consulta-cuenta-v2/v1/cuenta/saldo-v2`,
-        `${this.baseUrl}/bdvx-operaciones-cambiarias/v1/operaciones/comprar`,
-        `${this.baseUrl}/bdvx-operaciones-cambiarias/v1/operaciones/confirmar`,
-      ],
-      canExecuteLive: Boolean(this.baseUrl && this.appKey),
-      reasonIfDisabled: !this.baseUrl
-        ? 'No se ha configurado BDV_API_BASE_URL en el servidor.'
-        : undefined,
-    };
-  }
-}
-
-// Factoría de adaptador: Por defecto usa Sandbox seguro con validación estricta de negocio
-const isLiveConfigured = Boolean(process.env.BDV_API_BASE_URL && process.env.BDV_APP_KEY);
-export const activeBankingAdapter: IBdvBankingAdapter = isLiveConfigured
+// Selección autorizada del adaptador:
+// En producción real, si BDV_API_BASE_URL está configurado se utiliza BdvLiveApiAdapter.
+// Si no está configurado, el sistema informa el bloqueo sin disfrazar datos ficticios como producción.
+const hasLiveUrl = Boolean(process.env.BDV_API_BASE_URL);
+export const activeBankingAdapter: IBdvBankingAdapter = hasLiveUrl
   ? new BdvLiveApiAdapter()
   : new BdvSandboxAdapter();

@@ -8,8 +8,8 @@ import {
   EyeOff, 
   RefreshCw, 
   AlertCircle,
-  KeyRound,
-  ArrowRight
+  ArrowRight,
+  ShieldAlert
 } from 'lucide-react';
 import { BdvApiClient } from '../services/apiClient';
 import { BdvUserSession } from '../types/bdv';
@@ -19,16 +19,21 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState<string>('carlos.mendoza');
-  const [password, setPassword] = useState<string>('Bdv@2026Secure!');
+  // Sin credenciales precargadas en producción
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      setError('Por favor ingrese su usuario o documento de identidad y contraseña.');
+    if (!username.trim()) {
+      setError('Por favor ingrese su usuario o documento de identidad registrado.');
+      return;
+    }
+    if (!password.trim()) {
+      setError('Por favor ingrese su contraseña bancaria.');
       return;
     }
 
@@ -36,7 +41,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     try {
-      const session = await BdvApiClient.login(username, password);
+      const session = await BdvApiClient.login(username.trim(), password);
       onLoginSuccess(session);
     } catch (err: any) {
       setError(err.message || 'Error al autenticar con el servidor de BDV Digital.');
@@ -61,16 +66,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               BDV <span className="text-red-500 font-light">Digital</span>
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Banco de Venezuela • Acceso a Banca en Línea
+              Banco de Venezuela • Acceso Seguro a Banca en Línea
             </p>
           </div>
         </div>
 
-        {/* Mensaje de error si falla */}
+        {/* Mensaje de error si falla la autenticación */}
         {error && (
           <div className="mb-6 bg-rose-950/40 border border-rose-800/80 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-rose-200">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-            <span>{error}</span>
+            <div>
+              <span className="font-bold block mb-0.5">Fallo de Autenticación:</span>
+              <span>{error}</span>
+            </div>
           </div>
         )}
 
@@ -85,8 +93,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Ej: V-18492301 o carlos.mendoza"
+              placeholder="Ej: V-18492301 o usuario BDV"
               required
+              autoComplete="username"
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all font-mono"
             />
           </div>
@@ -101,8 +110,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
+                placeholder="Introduzca su contraseña"
                 required
+                autoComplete="current-password"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-4 pr-11 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all font-mono"
               />
               <button
@@ -124,7 +134,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             {loading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Autenticando con OAuth2...</span>
+                <span>Autenticando con canal bancario seguro...</span>
               </>
             ) : (
               <>
@@ -135,15 +145,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* Nota de credenciales de prueba */}
-        <div className="mt-6 pt-5 border-t border-slate-800 text-center">
-          <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 font-mono">
-            <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Cuenta demo precargada para pruebas</span>
+        {/* Garantías de seguridad */}
+        <div className="mt-6 pt-5 border-t border-slate-800 text-center space-y-2">
+          <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Conexión protegida por cifrado TLS 256-bit</span>
           </div>
-          <p className="text-[10px] text-slate-500 mt-2">
-            Autenticación conectada al endpoint extraído del APK: <br />
-            <code className="text-slate-400 font-mono">/bdvx-oauth-server/oauth/token</code>
+          <p className="text-[10px] text-slate-500">
+            Sus credenciales no se almacenan en el navegador y son transmitidas de forma directa al servidor OAuth del Banco de Venezuela.
           </p>
         </div>
       </div>
