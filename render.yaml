@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bdv-digitalbuydivisa
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/adapter/info
+    envVars:
+      - key: NODE_ENV
+        value: production
