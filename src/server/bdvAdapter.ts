@@ -736,6 +736,9 @@ export class BdvSandboxAdapter implements IBdvBankingAdapter {
 // En producción real, si BDV_API_BASE_URL está configurado se utiliza BdvLiveApiAdapter.
 // Si no está configurado, el sistema informa el bloqueo sin disfrazar datos ficticios como producción.
 const hasLiveUrl = Boolean(process.env.BDV_API_BASE_URL);
-export const activeBankingAdapter: IBdvBankingAdapter = hasLiveUrl
+const isProduction = process.env.NODE_ENV === 'production';
+// Nunca permitir operaciones simuladas bajo un despliegue de producción.
+// Si falta la URL autorizada, BdvLiveApiAdapter bloquea el acceso con CONFIG_BLOQUEADA.
+export const activeBankingAdapter: IBdvBankingAdapter = (hasLiveUrl || isProduction)
   ? new BdvLiveApiAdapter()
   : new BdvSandboxAdapter();
