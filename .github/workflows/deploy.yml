@@ -26,8 +26,9 @@ jobs:
         with:
           node-version: 22.x
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
-      - name: Instalar Dependencias
+      - name: Instalar Dependencias Reproducibles
         run: npm ci
 
       - name: Comprobación de Tipos y Linting
