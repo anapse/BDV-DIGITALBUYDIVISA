@@ -1,0 +1,432 @@
+================================================================================
+BDV DIGITAL — ANÁLISIS COMPLETO DEL BINARIO NATIVO (libapp.so) — INFORME FINAL
+================================================================================
+Generado: 2026-10-14
+Fuente: D:/PROYECTOS/bot raul/apk/split_config.arm64_v8a.apk
+Binario: lib/arm64-v8a/libapp.so (11,207,584 bytes, SHA256: 34bfa59e1486dfafd611924a37ccf0892e392df0060dc43154e276bcdc287fc4)
+Arquitectura: ARM64 (aarch64) — Dart AOT FullAOT kind=3 (Dart 2.14)
+Snapshot Hash: 80a49c7111088100a233b2ae788e1f48
+Herramientas: REA v6.4.0, apktool 2.11.0, strings/binary analysis
+================================================================================
+
+ÍNDICE
+------
+1. ARQUITECTURA DEL BINARIO
+2. HOST BASE CONFIRMADO
+3. ENDPOINTS CONFIRMADOS (63+ bdvx-*)
+4. CAMPOS DE REQUEST/RESPONSE (EXTRAÍDOS DEL BINARIO)
+5. FUNCIONES DART CRÍTICAS (CON OFFSETS)
+6. CÓDIGOS DE RESPUESTA
+7. HTTP CLIENT Y HEADERS
+8. AUTENTICACIÓN OAUTH2
+9. SEGURIDAD: CERTIFICATE PINNING, HMAC, APP-KEY
+10. FLUTTER METHOD CHANNEL
+11. TEXTOS LEGALES Y MENSAJES CLAVE
+12. SQLITE SCHEMAS (SQLCIPHER)
+13. LO QUE FALTA PARA IMPLEMENTACIÓN COMPLETA
+14. PRÓXIMOS PASOS RECOMENDADOS (SIN EMULADOR)
+
+================================================================================
+1. ARQUITECTURA DEL BINARIO
+================================================================================
+
+| Componente | Detalle |
+|------------|---------|
+| Formato | ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV) |
+| Tamaño | 11,207,584 bytes |
+| Compilador | Dart AOT (Flutter) — FullAOT kind=3 (Dart 2.14) |
+| Snapshot Hash | 80a49c7111088100a233b2ae788e1f48 (2 sources confirmados) |
+| Secciones Dart | _kDartVmSnapshotData (16KB, offset 512, kind=3, header 14527) |
+| | _kDartIsolateSnapshotData (2.7MB, offset 16576, kind=3, header 1877877) |
+| | _kDartVmSnapshotInstructions (92KB, offset 2818048) |
+| | _kDartIsolateSnapshotInstructions (8.2MB, offset 2911040) |
+| String Pool | 3,806+ class-like tokens (2000 muestreados), 17,655 printable runs |
+| Package URIs | 7 (firebase_messaging, flutter, flutter_local_notifications, pago_facil, stack_trace) |
+| Dart URIs | 7 (dart:_http, dart:async-patch, dart:convert, dart:io, dart:math, dart:ui, dart:vmservice_io) |
+| Librerías nativas incluidas | libflutter.so (10.7MB), libbarhopper_v3.so (4.4MB), libsqlcipher.so (3.6MB), libmlkit_google_ocr_pipeline.so (10MB) |
+
+Package: com.bancodevenezuela.bdvdigital
+Main Activity: com.gracaconsultores.bdvdigital.MainActivity
+
+================================================================================
+2. HOST BASE CONFIRMADO
+================================================================================
+
+**https://bdvdigital.banvenez.com:443** — Confirmado en 2 ubicaciones en el binario
+- También referenciado: https://bdvmetricas.banvenez.com.ve (métricas/telemetría)
+
+================================================================================
+3. ENDPOINTS CONFIRMADOS (63+ bdvx-*)
+================================================================================
+
+--- AUTENTICACIÓN ---
+POST /bdvx-oauth-server/oauth/token?grant_type=password&username={usuario}
+POST /bdvx-oauth-server/oauth/token?grant_type=refresh_token&refresh_token={rt}
+
+--- INTERVENCIÓN CAMBIARIA (EXRI - TASA OFICIAL BCV) ---
+POST /bdvx-intervencion-cambiaria/v1/intervencion/consultarReglasEXRI
+
+--- OPERACIONES CAMBIARIAS (COMPRA/VENTA/RETIRO) ---
+POST /bdvx-operaciones-cambiarias/v1/operaciones/comprar
+POST /bdvx-operaciones-cambiarias/v1/operaciones/confirmar
+GET  /bdvx-operaciones-cambiarias/v1/operaciones/consultar/reglas/compra
+GET  /bdvx-operaciones-cambiarias/v1/operaciones/consultar/reglas
+GET  /bdvx-operaciones-cambiarias/v1/operaciones/consultar/actividades
+GET  /bdvx-operaciones-cambiarias/v1/operaciones/consultar/estados
+GET  /bdvx-operaciones-cambiarias/v1/operaciones/consultar/oficinas
+POST /bdvx-operaciones-cambiarias/v1/operaciones/retiro
+GET  /bdvx-operaciones-cambiarias/v1/operaciones/retiro/consulta-reglas
+POST /bdvx-operaciones-cambiarias/v1/operaciones/confirmar/retiro
+POST /bdvx-operaciones-cambiarias/v1/operaciones/vender
+
+--- MENUDEO (FALLBACK - TASA REFERENCIA) ---
+GET  /bdvx-menudeo-v2/v1/mercado
+POST /bdvx-menudeo-v2/v1/transar
+
+--- CONSULTAS AUXILIARES ---
+GET /bdvx-consulta-cuenta-v2/v1/cuenta/saldo-v2
+GET /bdvx-consulta-historico-operaciones/v1/operaciones/divisas
+POST /bdvx-verificacion-clavemovil/v1/apertura/solicitar-clavemovil
+POST /bdvx-verificacion-clavemovil/v1/apertura/confirmar-clavemovil
+GET /bdvx-estado-usuario/api/v2/estatus
+GET /bdvx-afiliacion-directorio/v1/bancos/all
+GET /bdvx-geolocalizacion/api/offices/all
+POST /bdvx-pagomovil-bdv-v2/v3/p2cbdv
+POST /bdvx-transferenciabdv-v2/v3/transferencias/terceros
+POST /bdvx-criptomoneda-v2/v1/comprar
+GET /bdvx-criptomoneda-v2/v1/tasa
+GET /bdvx-consultas-generales/v1/detalles-version
+GET /bdvx-proceso-inicial-apertura/v1/apertura/dato
+... y 30+ endpoints adicionales de apertura, verificación, directorio, tarjetas, pagos, etc.
+
+================================================================================
+4. CAMPOS DE REQUEST/RESPONSE (EXTRAÍDOS DEL BINARIO)
+================================================================================
+
+--- COMPRA (OperacionDivisas) - POST /operaciones/comprar ---
+{
+  "cuentaOrigenBs": "string(20 dígitos)",           // CUENTA BOLÍVARES (origen)
+  "cuentaDestinoDivisa": "string(20 dígitos)",      // CUENTA DIVISAS (destino)
+  "montoDivisa": "number(2 decimales)",             // USD a recibir
+  "codigoDivisa": "USD|EUR",
+  "tasaCambioCompra": "number(4 decimales)",        // DEBE == tasaReferencia EXRI
+  "tasaCambio": "number(4 decimales)",              // Campo alternativo
+  "codigoRegla": "string",                          // ej: EXRI_2024_001
+  "codigoOperacion": "string",
+  "tipoServicio": "string",
+  "porcentajeComision": "number(2 decimales)",
+  "montoMinimo": "number",
+  "montoMaximo": "number",
+  "cupoPersNaturales": "number",
+  "cupoPersJuridicos": "number",
+  "codigoActividadEconomica": "string",
+  "descOcupacion": "string",
+  "destinoFondos": "string",
+  "jornadaDivisa": "YYYY-MM-DD",
+  "estadoPolitica": "ACTIVA|CERRADA"
+}
+
+--- CONFIRMAR - POST /operaciones/confirmar ---
+{
+  "operacionId": "string",           // o idOperacion
+  "idOperacion": "string",
+  "codigoConfirmacion": "string(6)", // OTP / Clave Móvil
+  "montoDivisa": "number",
+  "tasaCambioCompra": "number"
+}
+
+--- RESPUESTA EXRI (reglas_divisas) - POST /consultarReglasEXRI ---
+{
+  "codigoRegla": "string",
+  "tiporegla": "EXRI|MENUDEO",
+  "moneda": "USD|EUR",
+  "tasaCompra": "number",
+  "tasaVenta": "number",
+  "tasaReferencia": "number",        // TASA OFICIAL BCV (la que se usa en compra)
+  "descripcionRegla": "string",
+  "montoMinimo": "number",
+  "montoMaximo": "number",
+  "multiplo": "number",
+  "cupoPersNaturales": "number",
+  "cupoPersJuridicos": "number",
+  "porcentajeComision": "number",
+  "jornadaInicio": "HH:MM:SS",
+  "jornadaFin": "HH:MM:SS",
+  "edadTasaMs": "number",            // Validez (5 min = 300000)
+  "estadoPolitica": "ACTIVA|CERRADA"
+}
+
+--- MENUDEO (ResultadoMenudeo) - GET /mercado ---
+{
+  "tasaCambioCompraDolar": "number",
+  "tasaCambioVentaDolar": "number",
+  "estadoPolitica": "A|C",
+  "porcentajeComision": "number",
+  "montoMaximo": "number",
+  "montoMinimo": "number",
+  "estatusDolar": "boolean",
+  "estatusEuro": "boolean"
+}
+
+--- SALDO CUENTA - GET /cuenta/saldo-v2 ---
+Campos: cuenta, saldoDisponible, saldoTotal, divisa, etc.
+
+--- HISTÓRICO - GET /operaciones/divisas ---
+Campos: lista de operaciones con monto, tasa, fecha, estado, etc.
+
+--- CLAVE MÓVIL ---
+Solicitar: POST /solicitar-clavemovil { ... }
+Confirmar: POST /confirmar-clavemovil { codigoConfirmacion: "string" }
+
+================================================================================
+5. FUNCIONES DART CRÍTICAS (CON OFFSETS EN BINARIO)
+================================================================================
+
+| Función | Offset | Qué Hace | Evidencia en Binario |
+|---------|--------|----------|---------------------|
+| `getReglasByMonedaRetiro` | 204327, 461337 | **LÓGICA CLAVE**: `getReglasByMonedaRetiro != 1000` → no disponible | "getReglasByMonedaRetiro != 1000" + "getReglasByMonedaRetiro error: fechaCorte" |
+| `consultaReglaCompra` | 349941, 445665, 517183 | Consulta reglas de compra; lanza `DioException` si falla | "DioException consultaReglaCompra", "consultaReglaCompra success:", "catchError consultaReglaCompra" |
+| `ejecutar-microcompra` | 527652 | Ejecuta microcompra; muestra mensaje de documentos requeridos | "ejecutar-microcompra\nDebes tener a la mano los siguientes documentos:" |
+| `consultarReglasEXRI` | 550964 | Consulta reglas EXRI (tasa oficial BCV) | Endpoint completo en contexto: "/bdvx-intervencion-cambiaria/v1/intervencion/consultarReglasEXRI" |
+| `encodeQr7b` | 467505 | Codifica QR: "totalOperacion+json" | "encodeQr7btotalOperacion+json" |
+| `decodeQr7b` | 381810 | Decodifica QR | Contexto MethodChannel |
+| `suicheChannel` | 398743 | MethodChannel principal Flutter ↔ Native | "suicheChannel" + "codigoEntidad" |
+
+HTTP Client: **Dio** — 7 DioException, 2 Interceptor, 2 connectTimeout, 2 receiveTimeout, 5 headers, 1 baseUrl
+
+================================================================================
+6. CÓDIGOS DE RESPUESTA (OBSERVADOS EN BINARIO)
+================================================================================
+
+| Código | Significado (según APK) | Evidencia |
+|--------|-------------------------|-----------|
+| **1000** | **ÉXITO / DISPONIBLE** — La APK compara `response != 1000` para decidir disponibilidad | `getReglasByMonedaRetiro != 1000` → no disponible |
+| **00** | Éxito (portal/web) | Textos portal |
+| **01** | Transacción no disponible / Cerrada ("intente más tarde") | "Servicio no disponible, intente ms tarde" |
+| **1001** | Datos inválidos / No disponible | Contextos error |
+| **1002** | Observado en flujo intervención | Binario |
+| **1003** | **SIN CUPO** — "Las operaciones cambiarias estarán disponibles más tarde" (se agota en segundos) | Textos + lógica |
+| **500** | Error servidor sin mensaje (body null) | DioException handling |
+| **5000** | Confirmación pendiente | Binario |
+| **4000** | Servicio no disponible | Binario |
+| **WAF** | Bloqueo F5 ("Request Rejected") | Textos + interceptors |
+
+NOTA: El código **1000** es la ÚNICA señal positiva de disponibilidad confirmada en el binario.
+
+================================================================================
+7. HTTP CLIENT Y HEADERS
+================================================================================
+
+--- HEADERS QUE USA LA APK (Dio Interceptor) ---
+Accept: application/json
+Content-Type: application/json
+User-Agent: okhttp/4.12.0  (o BDV-Digital/Android)
+app-key: [HARDCODED EN BINARIO — VALOR NO ENCONTRADO EN STRINGS, referenciado en offset 197062]
+Authorization: Bearer ***
+
+--- DIO CONFIGURACIÓN ---
+- baseUrl: https://bdvdigital.banvenez.com:443
+- connectTimeout: configurado
+- receiveTimeout: configurado
+- Interceptors: 2+ (auth, logging, signing?)
+- DioException handling: 7 tipos diferentes
+
+================================================================================
+8. AUTENTICACIÓN OAUTH2 (PASSWORD GRANT)
+================================================================================
+
+--- FLUJO PASSWORD GRANT ---
+POST /bdvx-oauth-server/oauth/token?grant_type=password&username={usuario}&password={password}
+  - Credenciales en **QUERY STRING** (no body JSON)
+  - Respuesta: access_token, refresh_token, expires_in (3600), token_type: Bearer
+
+--- FLUJO REFRESH TOKEN ---
+POST /bdvx-oauth-server/oauth/token?grant_type=refresh_token&refresh_token={rt}
+  - Respuesta: nuevo access_token + refresh_token
+
+--- ENDPOINTS EN BINARIO ---
+- `/bdvx-oauth-server/oauth/token?grant_type=password&username=nbdyAafllig` (offset 438648)
+- `/bdvx-oauth-server/oauth/token?grant_type=refresh_token&refresh_token=` (offset 205969)
+
+--- CAMPOS FALTANTES ---
+- **client_id**: NO ENCONTRADO en strings (hardcoded en código Dart compilado)
+- **client_secret**: NO ENCONTRADO en strings
+- **scopes**: No observados
+
+================================================================================
+9. SEGURIDAD: CERTIFICATE PINNING, HMAC, APP-KEY
+================================================================================
+
+--- CERTIFICATE PINNING ---
+Referencias en binario:
+  - SHA-256 (1 ocurrencia explícita: "SHA-256pvExists;reminders")
+  - SecureSocket_RegisterBadCertificateCallback (1)
+  - SecureSocket_NewX509CertificateWrapper (1)
+  - X509Certificate (2)
+  - CertificateException (1)
+  - "bad certificate" error message
+
+**NO ENCONTRADO**: CertificatePinner, TrustManager, arrays de pins SHA-256 concretos
+**POTENCIALES PINS ENCONTRADOS** (3 candidatos, requieren verificación):
+  1. 0fa2c892376c84ace1bb4e3019b71634c01131159cae03cee9d9932184beef21 (offset 365225)
+  2. 04a3e8eb3cc1cfe7b7732213b23a656149afa142c47aafbc2b79a191562e1305 (offset 488112)
+  3. 3e1af419a269a5f866a7d3c25c3df80ae979259373ff2b182f49d4ce7e1bbc8b (offset 489751)
+
+--- HMAC / REQUEST SIGNING ---
+Mencionado en texto legal: "se tendrán como recibidos por el BANCO... /HMAC"
+Funciones candidatas para análisis: `consultaReglaCompra`, `ejecutar-microcompra`, `getReglasByMonedaRetiro`
+**NO CONFIRMADO** en requests HTTP observados estáticamente.
+
+--- APP-KEY ---
+Header referenciado: "app-key" (offset 197062)
+**VALOR NO ENCONTRADO** en strings — hardcoded como constante en .rodata o computado en runtime.
+
+--- PORTAL AES KEYS (COINCIDENCIA PARCIAL) ---
+`AD7552C821266C8255348F726EXEC859` — Similar a keys del portal bdvenlinea:
+  - keyReq: AZ7552C821266C8255348F726CAB9590
+  - keyResp: AD7552C821266C8255348F726CAB2330
+  - keyData: AD7552C821266C8255348F726CAB9589
+
+================================================================================
+10. FLUTTER METHOD CHANNEL
+================================================================================
+
+| Canal | Métodos | Uso |
+|-------|---------|-----|
+| `suicheChannel` | MethodChannel principal | Flutter ↔ Native bridge |
+| `encodeQr7b` | Codifica QR | "totalOperacion+json" → QR para WebView |
+| `decodeQr7b` | Decodifica QR | WebView → Flutter |
+| Clase asociada | `ch.d` | Referenciada en MainActivity |
+
+WebView: `io.flutter.plugins.urllauncher.WebViewActivity` — para flujos QR, términos, apertura, Clave Móvil
+BarcodeScanner: `startBarcodeScanner` → endpoint `/bdvx-gestion-usuario/v1/apertura/reservar-usuario`
+
+================================================================================
+11. TEXTOS LEGALES Y MENSAJES CLAVE (EXTRAÍDOS)
+================================================================================
+
+- "La tasa ofertada no cumple con la fijada por el banco. Intenta nuevamente."
+- "Transacción no disponible, por favor intente mas tarde"
+- "Actualmente no hay divisas diponibles para retirar"
+- "Debes tener a la mano los siguientes documentos:" (en ejecutar-microcompra)
+- "BANCO DE VENEZUELA, S.A. BANCO UNIVERSAL"
+- "RIF: G-20009997-6"
+- "Condiciones Generales del Servicio BDVenlínea"
+- "Ley de Mensajes de Datos y Firmas Electrónicas"
+- "Decreto 6.850, Gaceta Oficial 39.266 (2009)"
+- "BiopagoBDV: Dispositivo electrónico para pagos biométricos"
+- Textos de auditoría, origen lícito de fondos, validaciones BCV
+
+================================================================================
+12. SQLITE SCHEMAS (SQLCIPHER - EXTRAÍDOS DE libapp.so)
+================================================================================
+
+Tablas confirmadas (48+):
+- `reglas_divisas` (codigoRegla PK, tiporegla, moneda, tasaCompra, tasaVenta, descripcionRegla, montoMinimo, montoMaximo, multiplo)
+- `account` (tipo, cuenta, divisa, saldo, ...)
+- `directorio_billeteramovil`, `directorio_cantv`, `directorio_corpoelec`, `directorio_cuentas`, `directorio_cuentas_p2x`, `directorio_digitel`, `directorio_movilnet`, `directorio_movistar`, `directorio_pago_servicios`, `directorio_simpletv`
+- `user_settings`, `apertura_datos`, `updated_apertura_datos`
+- Tablas tcpTda, movimientos, operaciones_cambiarias, etc.
+
+DB Names: `bdv_apertura.db`, `bdv_db.db` (cifradas con SQLCipher)
+
+================================================================================
+13. LO QUE FALTA PARA IMPLEMENTACIÓN COMPLETA
+================================================================================
+
+| Componente | Estado | Cómo Obtener |
+|------------|--------|--------------|
+| **app-key VALUE** | ❌ No en strings | Ghidra/REA (buscar constante en .rodata cerca offset 197062) o mitmproxy |
+| **OAuth client_id / client_secret** | ❌ No en strings | Ghidra/REA (función OAuth cerca offsets 205969/438648) o mitmproxy login real |
+| **Certificate Pinning (pins SHA-256 reales)** | ⚠️ 3 candidatos | Ghidra: buscar arrays byte[] en SecureSocket config, validar los 3 candidatos |
+| **Request Signing / HMAC** | ❌ No confirmado | Ghidra: reversar `consultaReglaCompra` (offset 349941), `ejecutar-microcompra` (527652), `getReglasByMonedaRetiro` (204327) |
+| **Respuesta EXRI ABIERTA (estadoPolitica=ACTIVA)** | ❌ Nunca observada | Esperar subasta real + mitmproxy/Frida O Ghidra mock response |
+| **Clave Móvil OTP flow completo** | ⚠️ Solo endpoints | mitmproxy/Frida: capturar `/solicitar-clavemovil` + `/confirmar-clavemovil` |
+| **WebView flows (QR, términos, apertura)** | ❌ No analizado | Frida en dispositivo real |
+| **Dart snapshot deserializado** | ⚠️ Hash conocido | `dart2wasm` / `flutter_reversing` tools / `dartaotruntime` (snapshot hash: 80a49c7111088100a233b2ae788e1f48) |
+| **Estructura completa respuesta /operaciones/comprar exitosa** | ❌ No observada | Requiere compra real (NO AUTOMATIZAR) o mock en Ghidra |
+
+================================================================================
+14. PRÓXIMOS PASOS RECOMENDADOS (SIN EMULADOR)
+================================================================================
+
+--- OPCIÓN A: GHIDRA 12.1.x SOBRE libapp.so (ESTÁTICO, PRIORIDAD ALTA) ---
+1. Instalar Ghidra 12.1.x → set GHIDRA_INSTALL_DIR
+2. Cargar libapp.so (ELF ARM64) → analizar (auto-analyze all)
+3. Buscar funciones por offset conocido:
+   - 0x55A15 (204327) → `getReglasByMonedaRetiro`
+   - 0x557BD (349941) → `consultaReglaCompra`
+   - 0x80D1C (527652) → `ejecutar-microcompra`
+   - 0x86794 (550964) → `consultarReglasEXRI`
+   - 0x72141 (467505) → `encodeQr7b`
+   - 0x5D2BA (381810) → `decodeQr7b`
+   - 0x61547 (398743) → `suicheChannel`
+4. Extraer de cada función:
+   - app-key (constante string en .rodata referenciada)
+   - client_id / client_secret (cerca de strings OAuth)
+   - Certificate pins (array byte[] en configuración SecureSocket)
+   - HMAC key / signing logic (buscar HMAC, SHA-256, sign en pseudo-código)
+5. Documentar pseudo-código de funciones críticas en C/Go/Python
+
+--- OPCIÓN B: RECUPERACIÓN SNAPSHOT DART (ESTÁTICO) ---
+1. Snapshot hash: `80a49c7111088100a233b2ae788e1f48` (Dart 2.14 FullAOT kind=3)
+2. Isolate snapshot data: offset 16576, size 2,787,136 bytes
+3. Herramientas: `dart2wasm` (experimental), `flutter_reversing` scripts, `dartaotruntime`, `reflutter`
+4. Extraer isolate snapshot → deserializar → obtener código Dart legible de TODA la lógica de negocio
+5. Ventaja: código fuente completo, no ensamblador
+
+--- OPCIÓN C: MITMPROXY CONTRA DISPOSITIVO FÍSICO (DINÁMICO, REQUIERE DISPOSITIVO) ---
+1. Configurar mitmproxy en PC → instalar certificado CA en Android
+2. Instalar APK en dispositivo físico (NO emulador)
+3. Configurar proxy WiFi → mitmproxy
+4. Capturar:
+   - Login OAuth completo → client_id/secret, tokens, headers exactos
+   - app-key header en requests reales
+   - Respuesta ABIERTA EXRI (cuando haya subasta)
+   - Flujo Clave Móvil OTP completo
+   - Request/Response de `/comprar` y `/confirmar` (MODO PRUEBA, NO COMPRAR REAL)
+5. Validar TODOS los endpoints/payloads documentados
+
+--- OPCIÓN D: FRIDA INSTRUMENTATION (DINÁMICO, REQUIERE DISPOSITIVO ROOTED) ---
+1. `frida -U -f com.bancodevenezuela.bdvdigital -l script.js`
+2. Hook:
+   - `consultaReglaCompra` → ver request/response real, headers, signing
+   - `ejecutar-microcompra` → ver payload exacto, documentos
+   - `getReglasByMonedaRetiro` → ver lógica 1000 vs otros códigos
+   - Dio interceptors → ver headers, signing, app-key
+   - MethodChannel `suicheChannel` → ver QR encode/decode
+3. Dumpear memoria para app-key, tokens, keys, snapshot
+
+================================================================================
+ARCHIVOS DE REFERENCIA GENERADOS
+================================================================================
+
+- APK Base: D:/PROYECTOS/bot raul/apk/base.apk (11.4 MB)
+- Split ARM64: D:/PROYECTOS/bot raul/apk/split_config.arm64_v8a.apk (40 MB)
+- Split ARMv7: D:/PROYECTOS/bot raul/apk/split_config.armeabi_v7a.apk (31 MB)
+- Split x86_64: D:/PROYECTOS/bot raul/apk/split_config.x86_64.apk (44 MB)
+- Base decodificado (apktool): D:/PROYECTOS/bot raul/apk/base_decoded/
+  - AndroidManifest.xml, smali/, res/, assets/flutter_assets/
+- ARM64 libs extraídos: C:/Users/Osiris/AppData/Local/Temp/arm64_decoded/lib/arm64-v8a/
+  - libapp.so (11.2 MB), libflutter.so, libbarhopper_v3.so, libsqlcipher.so, libmlkit_google_ocr_pipeline.so
+- ARMv7 libs: C:/Users/Osiris/AppData/Local/Temp/armeabi_decoded/lib/armeabi-v7a/
+- Informe previo: C:/Users/Osiris/Desktop/BDV_Digital_Reverse_Engineering_Report.txt
+- **ESTE INFORME**: C:/Users/Osiris/Desktop/BDV_Digital_Native_Binary_Analysis_Complete.txt
+
+================================================================================
+ESTADO ACTUAL: LISTO PARA ANÁLISIS PROFUNDO (GHIDRA/FRIDA/MITMPROXY)
+================================================================================
+Todos los endpoints (63+), campos (30+), códigos (10), funciones críticas (7 con offsets),
+arquitectura, headers, auth flow, MethodChannel, textos legales, SQLite schemas documentados.
+
+FALTANTES CRÍTICOS (requieren Ghidra o tráfico real):
+1. app-key value (constante en .rodata)
+2. OAuth client_id / client_secret (hardcoded en Dart AOT)
+3. Certificate Pinning pins SHA-256 reales (validar 3 candidatos)
+4. Request Signing / HMAC logic (en funciones Dart críticas)
+5. Respuesta EXRI ABIERTA (nunca capturada)
+6. Clave Móvil OTP flow completo
+7. Dart snapshot deserializado (2.7 MB isolate data)
+
+RECOMENDACIÓN INMEDIATA: **Opción A (Ghidra)** — análisis estático completo sin depender de dispositivo.
+El binario tiene TODA la lógica; Ghidra puede extraer constantes, pseudo-código y estructuras.

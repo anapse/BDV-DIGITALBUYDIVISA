@@ -1,0 +1,349 @@
+{
+  "cycle": 1,
+  "timestamp": "2026-10-14T04:47:49",
+  "endpoints_found": [
+    {
+      "pattern": "COMPRA",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "COMPRA_NATURAL",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "CUENTA",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "Compra",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "Comprar",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "Confirmar",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "Cuenta",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "Estatus",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "MENUDEO",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "MENUDEO_TRANSFERENCIA_TERCEROS",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "MENUDEO_VENTA",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "Menudeo",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "MicuentadigitalBDV",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "Saldo",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "accessToken",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "access_token",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "codigoEstatusCuenta",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "codigoRegla",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "consultaSaldo",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuenta",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaAbono",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaCargo",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaCliente",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaComision",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaCtr",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaDestino",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaDestinoDivisa",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaOrigen",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaOrigenBs",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentaTarjeta",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "cuentasCargo",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "descripcionEstatusCuenta",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "descripcionRegla",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "direccionadorCuenta",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "directorio_cuentas",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "directorio_cuentas_p2x",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "estatus",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "estatusTarjeta",
+      "source": "string_pool_dart_aot",
+      "cycle": 1
+    },
+    {
+      "pattern": "/bdvx-oauth-server/oauth/token",
+      "source": "known_from_analysis",
+      "cycle": 1
+    },
+    {
+      "pattern": "/bdvx-intervencion-cambiaria/v1/intervencion/consultarReglasEXRI",
+      "source": "known_from_analysis",
+      "cycle": 1
+    },
+    {
+      "pattern": "/bdvx-operaciones-cambiarias/v1/operaciones/comprar",
+      "source": "known_from_analysis",
+      "cycle": 1
+    },
+    {
+      "pattern": "/bdvx-operaciones-cambiarias/v1/operaciones/confirmar",
+      "source": "known_from_analysis",
+      "cycle": 1
+    },
+    {
+      "pattern": "/bdvx-consulta-cuenta-v2/v1/cuenta/saldo-v2",
+      "source": "known_from_analysis",
+      "cycle": 1
+    }
+  ],
+  "auth_flow": [
+    {
+      "pattern": "accessToken",
+      "source": "string_pool",
+      "cycle": 1
+    },
+    {
+      "pattern": "access_token",
+      "source": "string_pool",
+      "cycle": 1
+    },
+    {
+      "pattern": "brieflyShowPassword",
+      "source": "string_pool",
+      "cycle": 1
+    },
+    {
+      "pattern": "fastPassword",
+      "source": "string_pool",
+      "cycle": 1
+    },
+    {
+      "pattern": "grant_type=password&username=",
+      "description": "OAuth2 password grant username parameter"
+    },
+    {
+      "pattern": "grant_type=refresh_token&refresh_token=",
+      "description": "OAuth2 refresh token parameter"
+    },
+    {
+      "pattern": "Authorization: ***",
+      "description": "Bearer token authorization"
+    },
+    {
+      "pattern": "app-key",
+      "description": "App key header (hardcoded en binario)"
+    }
+  ],
+  "sql_schemas": [
+    {
+      "name": "reglas_divisas",
+      "columns": [
+        "codigoRegla VARCHAR(60) PRIMARY KEY",
+        "tiporegla VARCHAR(50)",
+        "moneda VARCHAR(10)",
+        "tasaCompra VARCHAR(60)",
+        "tasaVenta VARCHAR(60)",
+        "descripcionRegla VARCHAR(60)",
+        "montoMinimo VARCHAR(60)",
+        "montoMaximo VARCHAR(60)",
+        "multiplo VARCHAR(60)"
+      ]
+    },
+    {
+      "name": "monedas_divisas",
+      "columns": [
+        "codigo VARCHAR(10) PRIMARY KEY",
+        "nombre VARCHAR(60)",
+        "simbolo VARCHAR(10)",
+        "decimales INTEGER"
+      ]
+    },
+    {
+      "name": "operaciones_cambiarias",
+      "columns": [
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "codigoOperacion VARCHAR(60)",
+        "cuentaOrigen VARCHAR(20)",
+        "cuentaDestino VARCHAR(20)",
+        "montoDivisa REAL",
+        "tasaCambio REAL",
+        "codigoRegla VARCHAR(60)",
+        "estado VARCHAR(20)",
+        "fechaCreacion TIMESTAMP",
+        "fechaConfirmacion TIMESTAMP"
+      ]
+    },
+    {
+      "name": "cuentas",
+      "columns": [
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "numero VARCHAR(20)",
+        "tipo VARCHAR(20)",
+        "moneda VARCHAR(10)",
+        "saldo REAL",
+        "disponible REAL",
+        "estatus VARCHAR(20)"
+      ]
+    }
+  ],
+  "functions_dart": [],
+  "string_pool_samples": [
+    "BDVAPPDEMO",
+    "BDV_NOTICIAS_GENERALES",
+    "BDV_NOTICIAS_GENERALES_QA",
+    "BDVenl",
+    "COMPRA",
+    "COMPRA_NATURAL",
+    "CUENTA",
+    "Compra",
+    "Comprar",
+    "Confirmar"
+  ],
+  "completed_modules": [
+    {
+      "package": "com.bancodevenezuela.bdvdigital",
+      "version": "583/583fce89",
+      "main_activity": "com.gracaconsultores.bdvdigital.MainActivity",
+      "flutter": true,
+      "sdk_version": 33,
+      "cycle": 1
+    }
+  ],
+  "pending_modules": [
+    "endpoints",
+    "auth_oauth",
+    "sql",
+    "functions"
+  ],
+  "errors_encountered": [],
+  "statistics": {
+    "total_endpoints": 43,
+    "total_functions": 0,
+    "total_schemas": 4,
+    "total_tokens": 10,
+    "modules_completed": 1,
+    "strategy": "static"
+  }
+}
