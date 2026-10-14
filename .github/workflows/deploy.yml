@@ -1,20 +1,25 @@
-name: BDV Digital Production CI & Build
+name: BDV Digital Production CI & GitHub Pages Deployment
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
+# Permisos requeridos para publicar en GitHub Pages de forma segura con OIDC
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+# Permite un despliegue concurrente a la vez en GitHub Pages
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
 
 jobs:
   validate-and-build:
-    name: Validar, Compilar y Ejecutar Pruebas
+    name: Validar, Compilar y Empaquetar
     runs-on: ubuntu-latest
 
     steps:
@@ -31,19 +36,39 @@ jobs:
       - name: Instalar Dependencias Reproducibles
         run: npm ci
 
-      - name: Comprobación de Tipos y Linting
+      - name: Comprobación Estricta de Tipos (Lint)
         run: npm run lint
 
-      - name: Compilación del Frontend (Vite)
+      - name: Compilación del Frontend de Producción
         run: npm run build
 
-      - name: Ejecución de Suite de Validación Bancaria (Idempotencia y Reglas)
+      - name: Ejecución de Suite de Pruebas Bancarias (Idempotencia y Reglas)
         run: npx tsx test_bdv_flow.ts
         env:
           NODE_ENV: test
 
-      - name: Verificar Integridad de Artefactos de Producción
+      - name: Preparar Redirección SPA para GitHub Pages
         run: |
           test -d dist || { echo "Error: Directorio dist no generado"; exit 1; }
           test -f dist/index.html || { echo "Error: dist/index.html no encontrado"; exit 1; }
-          echo "Artefactos de producción verificados correctamente."
+          # Copia index.html como 404.html para soporte de recargas en GitHub Pages
+          cp dist/index.html dist/404.html
+          echo "Artefactos y 404.html listos para publicación."
+
+      - name: Subir Artefacto para GitHub Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: 'dist'
+
+  deploy-pages:
+    name: Publicar Web en GitHub Pages
+    needs: validate-and-build
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar en GitHub Pages Oficial
+        id: deployment
+        uses: actions/deploy-pages@v4

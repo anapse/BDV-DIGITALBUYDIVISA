@@ -11,6 +11,7 @@ import {
 } from '../types/bdv';
 
 const SESSION_STORAGE_KEY = 'bdv_digital_session_v1';
+const BASE_API_URL = ((import.meta as any).env?.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 export class BdvApiClient {
   private static getSession(): BdvUserSession | null {
@@ -58,7 +59,7 @@ export class BdvApiClient {
   }
 
   public static async login(username: string, password: string): Promise<BdvUserSession> {
-    const res = await fetch('/api/auth/token', {
+    const res = await fetch(`${BASE_API_URL}/api/auth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
@@ -74,7 +75,7 @@ export class BdvApiClient {
   }
 
   public static async getCuentas(): Promise<BdvAccount[]> {
-    const res = await fetch('/api/cuentas', {
+    const res = await fetch(`${BASE_API_URL}/api/cuentas`, {
       headers: this.getHeaders(),
     });
 
@@ -86,7 +87,7 @@ export class BdvApiClient {
   }
 
   public static async getReglas(): Promise<BdvReglaCambiaria[]> {
-    const res = await fetch('/api/reglas', {
+    const res = await fetch(`${BASE_API_URL}/api/reglas`, {
       headers: this.getHeaders(),
     });
 
@@ -98,7 +99,7 @@ export class BdvApiClient {
   }
 
   public static async cotizar(req: CotizacionRequest): Promise<CotizacionResponse> {
-    const res = await fetch('/api/operaciones/cotizar', {
+    const res = await fetch(`${BASE_API_URL}/api/operaciones/cotizar`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(req),
@@ -112,7 +113,7 @@ export class BdvApiClient {
   }
 
   public static async iniciarCompra(req: IniciarCompraRequest): Promise<IniciarCompraResponse> {
-    const res = await fetch('/api/operaciones/comprar', {
+    const res = await fetch(`${BASE_API_URL}/api/operaciones/comprar`, {
       method: 'POST',
       headers: this.getHeaders(req.idempotencyKey),
       body: JSON.stringify(req),
@@ -126,7 +127,7 @@ export class BdvApiClient {
   }
 
   public static async confirmarCompra(codigoOperacion: string, idempotencyKey: string): Promise<ConfirmarCompraResponse> {
-    const res = await fetch('/api/operaciones/confirmar', {
+    const res = await fetch(`${BASE_API_URL}/api/operaciones/confirmar`, {
       method: 'POST',
       headers: this.getHeaders(idempotencyKey),
       body: JSON.stringify({ codigoOperacion, idempotencyKey }),
@@ -140,7 +141,7 @@ export class BdvApiClient {
   }
 
   public static async consultarEstado(codigoOperacion: string): Promise<BdvOperacionCambiaria> {
-    const res = await fetch(`/api/operaciones/${encodeURIComponent(codigoOperacion)}/estado`, {
+    const res = await fetch(`${BASE_API_URL}/api/operaciones/${encodeURIComponent(codigoOperacion)}/estado`, {
       headers: this.getHeaders(),
     });
 
@@ -152,7 +153,7 @@ export class BdvApiClient {
   }
 
   public static async getAdapterInfo(): Promise<any> {
-    const res = await fetch('/api/adapter/info');
+    const res = await fetch(`${BASE_API_URL}/api/adapter/info`);
     const json = await res.json();
     return json.data;
   }

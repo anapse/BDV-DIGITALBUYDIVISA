@@ -11,6 +11,17 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 
+// Soporte CORS para clientes web externos y GitHub Pages
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Idempotency-Key, app-key');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Sanitizador de logs para seguridad en producción (no registra contraseñas ni tokens completos)
 app.use((req, res, next) => {
   const start = Date.now();
