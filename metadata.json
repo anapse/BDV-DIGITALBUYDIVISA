@@ -1,0 +1,6 @@
+{
+  "name": "BDV Digital - Banca Digital y Compra de Divisas",
+  "description": "Plataforma web de BDV Digital para consulta de cuentas, reglas cambiarias y flujo seguro de compra de divisas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
